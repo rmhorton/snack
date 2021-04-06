@@ -1,2 +1,4 @@
 # snack
-Feature engineering library for electronic health record data.
+A feature engineering library for electronic health record data.
+
+Not Feast, just a snack.
