@@ -128,7 +128,7 @@ def add_id_bucket_column(sdf, id_col='pat_id', id_bucket_col='id_bucket', num_bu
 def get_basket_items(sdf, item_col, *key_cols, include_duplicate_items=True, exclude_single_item_baskets=True):
   """ generate sets of items from a table listing items individually (along with the group they belong to)
   
-  Params:
+  Args:
     sdf: input Spark dataframe
     item_col: the name of the column indicating the item
     *key_cols: the names of the columns that collectively indicate the group the item should be placed in
@@ -163,10 +163,11 @@ def fit_embedding(basket_item_sdf, implementation='pyspark', **new_par):
   
   The gensim implementaion is not scalable; it aggregates the input Spark dataframe to a local Pandas dataframe with items aggregated by basket, and returns the embedding results as a Pandas dataframe. The gensim implementation has more (or at least different) options compared to the pyspark implementation (e.g., pyspark only does skipgram method).
   
-  Param:
+  Args:
     basket_item_sdf: spark dataframe with basket id (may be multiple columns) and items vector.
     implementation: 'gensim' or 'pyspark'
     new_par: named parameters depend on the implementation (see `par` defaults in code.)
+  
   Returns:
     a Pandas dataframe with two columns, 'word' and 'vector'
   """
@@ -210,7 +211,7 @@ def flatten_embedding(embedding_pdf):
 def get_cluster_table(wv_pdf, num_clusters=[25, 50, 100, 200, 400, 800], metric='cosine', method='ward'):
   """ Generate table of cluster assignments for items in an embedding.
   
-  Params:
+  Args:
     wv_pdf: word-vector Pandas datafram containing embedding for items, as produced by `fit_embedding`.
     num_clusters: a one-dimensional numeric array of cutpoints for cutting the hierarchical tree. These values are the number of clusters at the cutpoint.
     metric: distance metric (default 'cosine')
@@ -331,6 +332,9 @@ def benjamini_hochberg_filter(sdf, alpha=0.001, filter=True):
 
 
 def export_to_vis_js(cooccurrence_pdf, title, html_file_name):
+    """
+    Generate vis_js graph from cooccurrence Pandas dataframe and write to HTML file.
+    """
     lift_coef = max(cooccurrence_pdf['lift'])
     weight_col='lift'
     item_stats = {r['item1']:{'count':r['item1_count'], 'prevalence':r['item1_prevalence']} for idx, r 
