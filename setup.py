@@ -22,3 +22,9 @@ setup(
     install_requires = ['networkx>=2.5', 'python-louvain>=0.15']
 )
 
+# pip install pydoc-markdown
+# conda install mkdocs
+# pydoc-markdown --bootstrap mkdocs
+# -- generate pydoc-markdown.yml
+# pydoc-markdown -m snack.snack --render-toc > snack_doc.md
+# -- generate function-level documentation
