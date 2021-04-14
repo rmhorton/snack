@@ -138,11 +138,11 @@ def get_basket_items(sdf, item_col, *key_cols, include_duplicate_items=True, exc
   Notes:
     This function is more or less equivalent to this SQL query:
     
-     select pat_id, prim_enc_csn_id, encounter_date, 
-         collect_list(distinct icd_code) items, 
-         count(distinct icd_code) num_items
-       from encounter_icd 
-       group by pat_id, prim_enc_csn_id, encounter_date
+     select patient, encounters.id encounter, encounter_date, 
+         collect_list(distinct condition) items, 
+         count(distinct condition) num_items
+       from encounters 
+       group by patient, encounter, encounter_date
 
   """
   collect_fun = fn.collect_list if include_duplicate_items else fn.collect_set
