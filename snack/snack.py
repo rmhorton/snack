@@ -122,6 +122,9 @@ def add_id_bucket_column(sdf, id_col='pat_id', id_bucket_col='id_bucket', num_bu
     num_buckets: the number of buckets
   
   """
+  sql_expr = f"mod(abs(hash({id_col})), {num_buckets})"
+  return sdf.withColumn(id_bucket_col, fn.expr(sql_expr))
+
   
 # Cluster feature methods
 
@@ -240,8 +243,6 @@ def get_cluster_table(wv_pdf, num_clusters=[25, 50, 100, 200, 400, 800], metric=
   cluster_assignment['item'] = wv_pdf['item']
 
   return cluster_assignment[['item', *cluster_cols]]
-  sql_expr = f"mod(abs(hash({id_col})), {num_buckets})"
-  return sdf.withColumn(id_bucket_col, fn.expr(sql_expr))
 
 
 # Co-occurrence graphs
