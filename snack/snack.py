@@ -423,7 +423,8 @@ def export_to_vis_js(cooccurrence_pdf, title, html_file_name):
     with open(html_file_name, "wt") as html_file:
         html_file.write(html_string)
 
-def get_candidate_names(cluster_text_pdf, cluster_col, text_col='sentence', sentence_sep=' ... ', max_ngram_length=3):
+def get_candidate_names(cluster_text_pdf, cluster_col, text_col='sentence', 
+                        sentence_sep=' ... ', max_ngram_length=3, top_n=1):
     """
     Use TF-IDF to find terms to use as candidate names for sections of text (especially clusters).
     
@@ -436,15 +437,21 @@ def get_candidate_names(cluster_text_pdf, cluster_col, text_col='sentence', sent
                     .transform(lambda s: sentence_sep.join(s))\
                     .values
     
-    my_stop_words = 'english' # ['a', 'an', 'the', 'and', 'of', 'at', 'in', 'or', 'been']
-    tfidf = TfidfVectorizer(ngram_range=(1, max_ngram_length), stop_words=my_stop_words, lowercase=False)
+    stop_words = 'english' # ['a', 'an', 'the', 'and', 'of', 'at', 'in', 'or', 'been']
+    tfidf = TfidfVectorizer(ngram_range=(1, max_ngram_length), 
+                            stop_words=stop_words, # sublinear_tf=True, # max_df=0.5,
+                            lowercase=False)
     X = tfidf.fit_transform(corpus)
     feature_names = tfidf.get_feature_names()
     
     # give slight advantage to terms containing more words
     npX = np.array(X.todense())
-    smidge = 1e-9  # just enough to break ties, not enough to affect real differences
+    smidge = 1e-12  # just enough to break ties, not enough to affect real differences
     feature_tfidf_adjustment = [smidge * len(n.split(' ')) for n in feature_names]
     adjusted_X = np.array([npX[i,:]+feature_tfidf_adjustment for i in range(len(npX))])
+    # candidate_names = [x for x in np.array(feature_names)[adjusted_X.argmax(axis=1)].tolist()]
     
-    return [x for x in np.array(feature_names)[adjusted_X.argmax(axis=1)].tolist()]
+    top_idx = [ [i for i in v[-top_n:][::-1]] for v in adjusted_X.argsort(axis=1)] # [-n:]
+    candidate_names = [', '.join(x) for x in np.array(feature_names)[top_idx].tolist()]
+    
+    return candidate_names
