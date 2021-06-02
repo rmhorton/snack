@@ -16,6 +16,8 @@ import networkx as nx
 import json
 import community as community_louvain
 
+from sklearn.feature_extraction.text import TfidfVectorizer
+
 # import pyspark.sql.functions as fn
 # from pyspark.sql.types import *
 # from pyspark.sql import Window
@@ -421,3 +423,28 @@ def export_to_vis_js(cooccurrence_pdf, title, html_file_name):
     with open(html_file_name, "wt") as html_file:
         html_file.write(html_string)
 
+def get_candidate_names(cluster_text_pdf, cluster_col, text_col='sentence', sentence_sep=' ... ', max_ngram_length=3):
+    """
+    Use TF-IDF to find terms to use as candidate names for sections of text (especially clusters).
+    
+    Example:
+    cluster_sentence_pdf = article_sentence.copy()
+    cluster_sentence_pdf['clusterA_name'] = get_candidate_names(cluster_sentence_pdf, cluster_col='clusterA', text_col='sentence')
+    """
+    corpus = cluster_text_pdf[[cluster_col, text_col]]\
+                    .groupby([cluster_col])[text_col]\
+                    .transform(lambda s: sentence_sep.join(s))\
+                    .values
+    
+    my_stop_words = 'english' # ['a', 'an', 'the', 'and', 'of', 'at', 'in', 'or', 'been']
+    tfidf = TfidfVectorizer(ngram_range=(1, max_ngram_length), stop_words=my_stop_words, lowercase=False)
+    X = tfidf.fit_transform(corpus)
+    feature_names = tfidf.get_feature_names()
+    
+    # give slight advantage to terms containing more words
+    npX = np.array(X.todense())
+    smidge = 1e-9  # just enough to break ties, not enough to affect real differences
+    feature_tfidf_adjustment = [smidge * len(n.split(' ')) for n in feature_names]
+    adjusted_X = np.array([npX[i,:]+feature_tfidf_adjustment for i in range(len(npX))])
+    
+    return [x for x in np.array(feature_names)[adjusted_X.argmax(axis=1)].tolist()]
