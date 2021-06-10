@@ -334,38 +334,48 @@ def benjamini_hochberg_filter(sdf, alpha=0.001, filter=True):
   return sdf2
 
 
-def export_to_vis_js(cooccurrence_pdf, title, html_file_name):
-    """
-    Generate vis_js graph from cooccurrence Pandas dataframe and write to HTML file.
-    """
-    lift_coef = max(cooccurrence_pdf['lift'])
-    weight_col='lift'
-    item_stats = {r['item1']:{'count':r['item1_count'], 'prevalence':r['item1_prevalence']} for idx, r 
-                  in cooccurrence_pdf.iterrows()}
+def get_nodes_and_edges_from_item_pair_stats(cooccurrence_pdf):
+    item_stats = {r['item1']:{'count':r['item1_count'], 'prevalence':r['item1_prevalence']} 
+                    for idx, r in cooccurrence_pdf.iterrows()}
 
-    item_stats.update({r['item2']:{'count':r['item2_count'], 'prevalence':r['item2_prevalence']} for idx, r 
-                  in cooccurrence_pdf.iterrows()})
+    item_stats.update({r['item2']:{'count':r['item2_count'], 'prevalence':r['item2_prevalence']} 
+                    for idx, r in cooccurrence_pdf.iterrows()})
 
-    nodes_df = pd.DataFrame([{'label':k,'count':v['count'], 'prevalence':v['prevalence']}  for k,v in item_stats.items()])
+    nodes_df = pd.DataFrame([{'label':k,'count':v['count'], 'prevalence':v['prevalence']}  
+                    for k,v in item_stats.items()])
     nodes_df['id'] = nodes_df.index
-
+   
+    edges_df = cooccurrence_pdf.copy()
     node_id = {r['label']:r['id'] for idx, r in nodes_df.iterrows()}
-
-    cooccurrence_pdf['from'] = [node_id[nn] for nn in cooccurrence_pdf['item1']]
-    cooccurrence_pdf['to'] = [node_id[nn] for nn in cooccurrence_pdf['item2']]
-
-    edges_df = cooccurrence_pdf[[ 'from', 'to', 'both_count', 'confidence', 'lift']]
+    edges_df['from'] = [node_id[nn] for nn in edges_df['item1']]
+    edges_df['to'] = [node_id[nn] for nn in edges_df['item2']]
     
     print("Your graph will have {0} nodes and {1} edges.".format( len(nodes_df), len(edges_df) ))
-    
+
+    return nodes_df, edges_df[[ 'from', 'to', 'both_count', 'confidence', 'lift']]
+
+
+def add_cluster_labels_to_nodes(nodes_pdf, edges_pdf, weight_col='lift'):
+    """
+    Decorate node_pdf with columns marking the cluster(s) each node belongs to, using the Louvain algorithm.
+    These cluster columns are added to nodes_pdf as a side effect.
+    """
+    import networkx as nx
     G = nx.Graph()
-    elist = [(r['from'], r['to'], r[weight_col]) for i, r in edges_df.iterrows()]
+    elist = [(r['from'], r['to'], r[weight_col]) for i, r in edges_pdf.iterrows()]
     G.add_weighted_edges_from(elist)
     dendro = community_louvain.generate_dendrogram(G)
     for level in range(0, len(dendro)):
         cluster_level_name = f"level_{level}_cluster"
         partition = community_louvain.partition_at_level(dendro, level)
-        nodes_df[cluster_level_name] = [partition[node_id[x]] for x in nodes_df['label']]
+        nodes_pdf[cluster_level_name] = [partition[x] for x in nodes_pdf['id']]  # [partition[node_id[x]] for x in nodes_pdf['label']]
+
+
+def export_to_vis_js(nodes_df, edges_df, title, html_file_name):
+    """
+    Generate vis_js graph from cooccurrence Pandas dataframe and write to HTML file.
+    """
+    max_lift = np.quantile(edges_df['lift'], 0.95)
     
     nodes_str = nodes_df.to_json(orient='records')
     edges_str = edges_df.to_json(orient='records')
@@ -383,25 +393,36 @@ def export_to_vis_js(cooccurrence_pdf, title, html_file_name):
         '		<body>\n'
         '			<div class="slidercontainer">\n'
         '				<label>minimum edge strength:\n'
-        '					<input type="range" min="0" max="1" value="0.5" step="0.01" class="slider" id="min_edge_weight" \n'
-        '							onchange="document.getElementById(\'min_edge_weight_display\').value=this.value;">\n'
-        '					<input type="text" id="min_edge_weight_display" size="2" value="0.5">\n'
+        '					<input type="range" min="0" max="1" value="0.5" step="0.01" class="slider" id="min_edge_weight">\n'
+        '					<input type="text" id="min_edge_weight_display" size="2">\n'
+        '					Metric: <span id="edge_weight_metric" />\n'
         '				</label>\n'
         '			</div>\n'
         '			<div id="mynetwork"></div>\n'
         '			<script type="text/javascript">\n'
+        f'	const max_lift = {max_lift}\n'
         '	const urlParams = new URLSearchParams(window.location.search);\n'
-        '	const weight_param = urlParams.get("weight")\n'
-        '	const edge_weight_metric = (weight_param === null) ? "lift" : weight_param\n'
+        '	const weight_metric = urlParams.get("metric")==null ? "lift" : urlParams.get("metric")\n'
+        '	const sign_color = {pos:"blue", neg:"red", zero:"black"}\n'
+        '	const filter_coef = {"confidence":1, "lift": max_lift, "log2lift": Math.log2(max_lift)}\n'
+        '	\n'
+        '	document.getElementById("min_edge_weight_display").value = filter_coef[weight_metric] * 0.5\n'
+        '	document.getElementById("min_edge_weight").onchange = function(){\n'
+        '		document.getElementById("min_edge_weight_display").value= filter_coef[weight_metric] * this.value\n'
+        '	}\n'
+        '	document.getElementById("edge_weight_metric").innerText = weight_metric\n'
+        '	\n'
         '	for (var i = 0; i < EDGE_LIST.length; i++) {\n'
-        '		EDGE_LIST[i]["arrows"] = "to"\n'
-        '		EDGE_LIST[i]["value"] = EDGE_LIST[i][edge_weight_metric]\n'
+        '		EDGE_LIST[i]["log2lift"] = Math.log2(EDGE_LIST[i]["lift"])\n'
+        '		if (weight_metric=="confidence") EDGE_LIST[i]["arrows"] = "to"\n'
+        '		EDGE_LIST[i]["value"] = Math.abs(EDGE_LIST[i][weight_metric])\n'
+        '		EDGE_LIST[i]["sign"] = (EDGE_LIST[i][weight_metric] < 0) ? "neg" : "pos";\n'
+        '		EDGE_LIST[i]["color"] = {color: sign_color[EDGE_LIST[i]["sign"]] };\n'
         '	}\n'
         '	\n'
         '	const edgeFilterSlider = document.getElementById("min_edge_weight")\n'
         '	\n'
-        f'	const filter_coef = {{"confidence":1, "lift":{lift_coef} }}\n'
-        '	function edgesFilter(edge){return edge.value > edgeFilterSlider.value * filter_coef[edge_weight_metric]}\n'
+        '	function edgesFilter(edge){return edge.value > edgeFilterSlider.value * filter_coef[weight_metric]}\n'
         '	\n'
         '	const nodes = new vis.DataSet(NODE_LIST)\n'
         '	const edges = new vis.DataSet(EDGE_LIST)\n'
@@ -423,6 +444,7 @@ def export_to_vis_js(cooccurrence_pdf, title, html_file_name):
     with open(html_file_name, "wt") as html_file:
         html_file.write(html_string)
 
+        
 def get_candidate_names(cluster_text_pdf, cluster_col, text_col='sentence', 
                         sentence_sep=' ... ', max_ngram_length=3, top_n=1):
     """
