@@ -477,3 +477,76 @@ def get_candidate_names(cluster_text_pdf, cluster_col, text_col='sentence',
     candidate_names = [', '.join(x) for x in np.array(feature_names)[top_idx].tolist()]
     
     return candidate_names
+
+
+### ICD-SNOMED mapping helper functions
+
+
+def prune_set_list(list_of_sets):
+  """
+  "sufficient subsets" pruning
+    example: CONCEPT_SETS['68235000'] = [{'R09.81'}, {'P28.89'}, {'J34.89'}, {'J34.89', 'R09.81'}, {'O99.891', 'R09.81'}]
+      reduces to [{'R09.81'}, {'P28.89'}, {'J34.89'}]
+  """
+  sorted_list_of_sets = sorted(list_of_sets, key=len)
+  pruned_list = []
+  for setA in sorted_list_of_sets:
+    is_novel = True
+    for setB in pruned_list:
+      if setB.issubset(setA):
+        is_novel = False
+        break
+    if is_novel:
+      pruned_list.append(setA)
+  return pruned_list
+
+
+def prune_icd_hierarchy(list_of_sets):
+  """
+    example: '26929004': [{'G30.1'}, {'G30.0'}, {'G30'}, {'G30.9'}, {'G30.8'}]
+      reduces to [{'G30'}]
+  """
+  icd_sections = set()
+  for setA in list_of_sets:
+    if len(setA) == 1:  # only worry about single-item sets for now
+      setA_item = list(setA)[0]
+      section = setA_item.split('.')[0]
+      if setA_item == section:
+        icd_sections.add(section)
+  return [x for x in list_of_sets 
+          if ((len(x) > 1) 
+              or (list(x)[0].split('.')[0] == list(x)[0]) 
+              or (list(x)[0].split('.')[0] not in icd_sections))]
+
+
+def prune_concept_sets(CONCEPT_SETS):
+  PRUNED_CONCEPT_SETS = {}
+  for term, cset_list in CONCEPT_SETS.items():
+    PRUNED_CONCEPT_SETS[term] = prune_icd_hierarchy(prune_set_list(cset_list))
+
+  return PRUNED_CONCEPT_SETS
+
+
+def concept_set_lists_to_table(cslist):
+  rows = []
+  id = 1
+  for snomed, set_list in cslist.items():
+    for a_set in set_list:
+      for icd_code in a_set:
+        rows.append({'snomed_concept_id':snomed, 'icd_set_id':id, 'icd_code':icd_code})
+      id = id + 1
+  return(pd.DataFrame(rows, columns=['snomed', 'set_id', 'icd_code']))
+
+
+# snomed_icd_sets_pdf = spark.sql("select snomed_concept_id, collect_list(icd_code_truncated) icd_set from icd2synthea_map_tmp group by snomed_concept_id, icd_set_id").toPandas()
+# CONCEPT_SETS = {}  # key = SNOMED_CONCEPT_ID, value = list of sets
+# for row in snomed_icd_sets_pdf.itertuples():
+#   if row.snomed_concept_id not in CONCEPT_SETS:
+#     CONCEPT_SETS[row.snomed_concept_id] = []
+#   icd_set = set(x for x in row.icd_set)
+#   CONCEPT_SETS[row.snomed_concept_id].append(icd_set)
+
+# CONCEPT_SETS
+
+
+
