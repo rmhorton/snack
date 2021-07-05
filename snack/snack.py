@@ -18,10 +18,10 @@ import community as community_louvain
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-# import pyspark.sql.functions as fn
-# from pyspark.sql.types import *
-# from pyspark.sql import Window
-# from pyspark.sql.dataframe import DataFrame
+import pyspark.sql.functions as fn
+from pyspark.sql.types import *
+from pyspark.sql import Window
+from pyspark.sql.dataframe import DataFrame
 
 # we won't need to do this in Spark 3
 # if getattr(DataFrame, "transform", None) is None:
@@ -477,6 +477,22 @@ def get_candidate_names(cluster_text_pdf, cluster_col, text_col='sentence',
     candidate_names = [', '.join(x) for x in np.array(feature_names)[top_idx].tolist()]
     
     return candidate_names
+
+
+def pivot_wide(sdf_long, pivot_col, *grouping_cols):
+  num_grouping_cols = len(grouping_cols)
+  
+  sdf_wide = ( sdf_long
+           .withColumn('mark', fn.lit(1))
+           .groupby('encounter')
+           .pivot(pivot_col)
+           .agg(fn.sum('mark'))
+         )
+
+  for attribute_col in sdf_wide.columns[num_grouping_cols:]:
+    sdf_wide = sdf_wide.withColumn(attribute_col, fn.when(fn.col(attribute_col).isNotNull(),'T').otherwise('F'))
+  
+  return sdf_wide
 
 
 ### ICD-SNOMED mapping helper functions
