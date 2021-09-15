@@ -590,5 +590,99 @@ def concept_set_lists_to_table(cslist):
 
 # CONCEPT_SETS
 
+def load_csv(csv_file):
+  return spark.read.format("csv").option("sep",',').option("header", "true").option("inferSchema", "true").load(csv_file)
 
+
+# Interactive plots of Bayes Nets
+def get_nodes_and_edges_from_arc_strength(arcs_pdf):
+    next_node_id = 1
+    node_id = {}
+    
+    for idx, r in arcs_pdf.iterrows():
+      if r['from'] not in node_id:
+        node_id[r['from']] = next_node_id
+        next_node_id = next_node_id + 1
+      if r['to'] not in node_id:
+        node_id[r['to']] = next_node_id
+        next_node_id = next_node_id + 1
+
+    nodes_pdf = pd.DataFrame([{'id':v, 'label':k} for k,v in node_id.items()])
+   
+    edges_pdf = pd.DataFrame([ {'from':node_id[r['from']], 'to':node_id[r['to']], 'weight':-1*r['strength']} for idx, r in arcs_pdf.iterrows() ])
+    
+    print("Your graph will have {0} nodes and {1} edges.".format( len(nodes_pdf), len(edges_pdf) ))
+
+    return nodes_pdf, edges_pdf
+
+def export_bayes_net_arcs_to_vis_js(nodes_df, edges_df, title, html_file_name):
+    """
+    Generate vis_js graph from Bayes Net nodes and edges and write to HTML file.
+    
+    Example:
+      nodes_df, edges_df = get_nodes_and_edges_from_arc_strength(arcs)
+      nodes_df['group'] = [1 if l.startswith('lab_') else 2 if l.startswith('d') else 0 for l in nodes_df['label']]
+      export_bayes_net_arcs_to_vis_js(nodes_df, edges_df, 'Tiered Nodes', '/dbfs/FileStore/rhorton1/bn_tiered_blacklist_v72_graph.html')
+
+    """
+    max_weight = np.quantile(edges_df['weight'], 0.95)
+    
+    nodes_str = nodes_df.to_json(orient='records')
+    edges_str = edges_df.to_json(orient='records')
+    
+    html_string = ( 
+        '<!DOCTYPE html>\n'
+        '<html lang="en">\n'
+        '<head>\n'
+        '	<meta http-equiv="content-type" content="text/html; charset=utf-8" />\n'
+        f'	<title>{title}</title>\n'
+        '	<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>\n'
+        f'	<script type="text/javascript">NODE_LIST={nodes_str};EDGE_LIST = {edges_str};</script>\n'
+        '	<style type="text/css">#mynetwork {width: 100%; height: 700px; border: 1px}</style>\n'
+        '	</head>\n'
+        '		<body>\n'
+        '			<div class="slidercontainer">\n'
+        '				<label>minimum edge strength:\n'
+        '					<input type="range" min="0" max="1" value="0.5" step="0.01" class="slider" id="min_edge_weight">\n'
+        '					<input type="text" id="min_edge_weight_display" size="2">\n'
+        '				</label>\n'
+        '			</div>\n'
+        '			<div id="mynetwork"></div>\n'
+        '			<script type="text/javascript">\n'
+        f'	const max_weight = {max_weight}\n'
+        '	const weight_metric = "weight"\n'
+        '	const filter_coef = {"confidence":1, "lift": max_weight, "log2lift": Math.log2(max_weight)}\n'
+        '	\n'
+        '	document.getElementById("min_edge_weight_display").value = max_weight * 0.5\n'
+        '	document.getElementById("min_edge_weight").onchange = function(){\n'
+        '		document.getElementById("min_edge_weight_display").value = max_weight * this.value\n'
+        '	}\n'
+        '	for (var i = 0; i < EDGE_LIST.length; i++) {\n'
+        '		EDGE_LIST[i]["arrows"] = "to"\n'
+        '		EDGE_LIST[i]["value"] = Math.abs(EDGE_LIST[i][weight_metric])\n'
+        '	}\n'
+        '	\n'
+        '	const edgeFilterSlider = document.getElementById("min_edge_weight")\n'
+        '	\n'
+        '	function edgesFilter(edge){return edge.value > edgeFilterSlider.value * max_weight}\n'
+        '	\n'
+        '	const nodes = new vis.DataSet(NODE_LIST)\n'
+        '	const edges = new vis.DataSet(EDGE_LIST)\n'
+        '	\n'
+        '	const nodesView = new vis.DataView(nodes)\n'
+        '	const edgesView = new vis.DataView(edges, { filter: edgesFilter })\n'
+        '	\n'
+        '	edgeFilterSlider.addEventListener("change", (e) => {edgesView.refresh()})\n'
+        '	\n'
+        '	const container = document.getElementById("mynetwork")\n'
+        '	const options = {physics:{maxVelocity: 10, minVelocity: 0.5}}\n'
+        '	const data = { nodes: nodesView, edges: edgesView }\n'
+        '	new vis.Network(container, data, options)\n'
+        '	\n'
+        '			</script>\n'
+        '		</body>\n'
+        '	</html>\n'
+    )
+    with open(html_file_name, "wt") as html_file:
+        html_file.write(html_string)
 
