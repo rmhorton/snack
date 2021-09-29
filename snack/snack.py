@@ -504,24 +504,24 @@ def pivot_wide(sdf_long, pivot_col, *grouping_cols):
 # from pyspark.sql.types import *
 # from pyspark.sql.functions import col, split
 
-@pandas_udf('string')
-def truncate_icd(icd_codes: pd.Series) -> pd.Series:
-  """
-  Remove characters from ICD10 code that make them too specific, like laterality, outcome of broken bones, etc.
-  """
-  def make_replacements(s):
-    replacements = [
-      ('\\.(.+)X.', '.\\1'),  # remove X followed by any character; eg,  S06.0X6 -> S06.0 concussion (??? might need to specify loss of consciousness ???)
-      ('\\.(.+)[XDSAKPGFJREHCNBMQ]$', '.\\1'), # X
-      ('\\.(...).', '.\\1'),  # always remove fourth character
-      ('\\.(\\d\\d)\\d$', '.\\1'), # remove third of 3 digits
-      ('\\.X$', ''), # if all that's left after the period is an 'X', drop it
-    ]
-    for old, new in replacements:
-      s = re.sub(old, new, s)
-    return s
-  
-  return pd.Series([make_replacements(x) for x in icd_codes])
+# @pandas_udf('string')
+# def truncate_icd(icd_codes: pd.Series) -> pd.Series:
+#   """
+#   Remove characters from ICD10 code that make them too specific, like laterality, outcome of broken bones, etc.
+#   """
+#   def make_replacements(s):
+#     replacements = [
+#       ('\\.(.+)X.', '.\\1'),  # remove X followed by any character; eg,  S06.0X6 -> S06.0 concussion (??? might need to specify loss of consciousness ???)
+#       ('\\.(.+)[XDSAKPGFJREHCNBMQ]$', '.\\1'), # X
+#       ('\\.(...).', '.\\1'),  # always remove fourth character
+#       ('\\.(\\d\\d)\\d$', '.\\1'), # remove third of 3 digits
+#       ('\\.X$', ''), # if all that's left after the period is an 'X', drop it
+#     ]
+#     for old, new in replacements:
+#       s = re.sub(old, new, s)
+# #     return s
+#   
+#   return pd.Series([make_replacements(x) for x in icd_codes])
 
 
 def prune_set_list(list_of_sets):
