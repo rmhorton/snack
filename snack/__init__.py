@@ -10,8 +10,6 @@ from .snack import prune_set_list, prune_icd_hierarchy, prune_concept_sets, conc
 from .snack import load_csv
 from .snack import get_nodes_and_edges_from_arc_strength, export_bayes_net_arcs_to_vis_js
 
-__version__ = "0.0.7"
-
 __all__ = [
             'times2',
             'timestamp_to_timeslice', 'expand_rows', 'fill_missing_values_forward',
@@ -25,3 +23,7 @@ __all__ = [
             'load_csv',
             'get_nodes_and_edges_from_arc_strength', 'export_bayes_net_arcs_to_vis_js',
           ]
+
+__version__ = "0.0.7"
+
+__doc__ = 'feature engineering functions for EMR data'
