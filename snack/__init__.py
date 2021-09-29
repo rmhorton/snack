@@ -17,11 +17,11 @@ __all__ = [
             'timestamp_to_timeslice', 'expand_rows', 'fill_missing_values_forward',
             'add_id_bucket_column', 'get_basket_items', 
             'fit_embedding', 'flatten_embedding', 'get_cluster_table', 
-            'get_item_pair_stats', 'benjamini_hochberg_filter', 'get_nodes_and_edges_from_item_pair_stats'
+            'get_item_pair_stats', 'benjamini_hochberg_filter', 'get_nodes_and_edges_from_item_pair_stats',
             'add_cluster_labels_to_nodes', 'export_to_vis_js',
             'get_candidate_names',
             'pivot_wide',
             'prune_set_list', 'prune_icd_hierarchy', 'prune_concept_sets', 'concept_set_lists_to_table',
             'load_csv',
-            'get_nodes_and_edges_from_arc_strength', 'export_bayes_net_arcs_to_vis_js'
+            'get_nodes_and_edges_from_arc_strength', 'export_bayes_net_arcs_to_vis_js',
           ]
