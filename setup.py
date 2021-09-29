@@ -5,7 +5,7 @@
 import io
 from setuptools import setup, find_packages
 
-# import snack
+import snack
 
 with io.open('README.md', encoding='utf_8') as fp:
     readme = fp.read()
