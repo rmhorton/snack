@@ -12,8 +12,8 @@ with io.open('README.md', encoding='utf_8') as fp:
 
 setup(
     name='snack',
-    version='0.0.1', # snack.__version__,
-    description='feature engineering functions for EHR data', # snack.__doc__.strip(),
+    version=snack.__version__,
+    description=snack.__doc__.strip(), # 'feature engineering functions for EMR data'
     author= 'Robert Horton',
     url='https://github.com/rmhorton/snack',
     long_description=readme,
