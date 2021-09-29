@@ -1,8 +1,3 @@
-# snack-0.0.1-py3-none-any.whl
-
-__version__ = '0.0.1'
-__doc__ = "Not Feast, just a snack."
-
 import pandas as pd
 import datetime
 import time
