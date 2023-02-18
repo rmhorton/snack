@@ -610,6 +610,7 @@ def get_nodes_and_edges_from_arc_strength(arcs_pdf):
 
     return nodes_pdf, edges_pdf
 
+
 def export_bayes_net_arcs_to_vis_js(nodes_df, edges_df, title, html_file_name):
     """
     Generate vis_js graph from Bayes Net nodes and edges and write to HTML file.
@@ -681,3 +682,56 @@ def export_bayes_net_arcs_to_vis_js(nodes_df, edges_df, title, html_file_name):
     with open(html_file_name, "wt") as html_file:
         html_file.write(html_string)
 
+        
+def get_grid_counts(sdf, obs_col, pred_col, step=0.5):
+    """
+    Compute a 2d density matrix of predicted and observed values.
+    sdf: a spark dataframe
+    obs_col <string>: name of column containing observed values
+    pred_col <string>: name of column containing predicted values
+    step <float>: width of each bucket
+    
+    returns: matrix of counts from bucketized observed and predicted values.
+
+    usage: 
+        M_pdf = get_grid_counts(obs_pred, 'label', 'prediction', step=0.5)
+        import matplotlib.pyplot as plt
+        plt.matshow(M_pdf) # we need improved display
+    """
+    from pyspark.ml.feature import Bucketizer
+    import pyspark.sql.functions as fn
+    import pandas as pd
+    import numpy as np
+    ranges = sdf.select(
+        fn.max(fn.col(obs_col)).alias('max_obs'),
+        fn.min(fn.col(obs_col)).alias('min_obs'),
+        fn.max(fn.col(pred_col)).alias('max_pred'),
+        fn.min(fn.col(pred_col)).alias('min_pred'),
+    ).toPandas()
+    range_lo = min(ranges['min_pred'][0], ranges['min_obs'][0])
+    range_hi = max(ranges['max_pred'][0], ranges['max_obs'][0])
+    lo_end, hi_end = np.floor(range_lo), np.ceil(range_hi)
+    num_steps = int( (hi_end - lo_end)/step ) + 1
+    grid_breaks = np.linspace(lo_end, hi_end, num_steps)
+    grid_centers = [(a+b)/2 for a, b in zip(grid_breaks[1:], grid_breaks[:-1])]
+    
+    pred_bucketizer = Bucketizer(splits=grid_breaks, inputCol=pred_col, outputCol="pred_bucket")
+    obs_bucketizer = Bucketizer(splits=grid_breaks, inputCol=obs_col, outputCol="obs_bucket")
+    sdf_bucketed_pred = pred_bucketizer.setHandleInvalid("keep").transform(sdf)
+    sdf_bucketed = obs_bucketizer.setHandleInvalid("keep").transform(sdf_bucketed_pred)
+    
+    bucket_counts = sdf_bucketed.groupBy(
+        fn.col('pred_bucket'),
+        fn.col('obs_bucket'),
+    ).count().toPandas()
+    
+    num_cells = len(grid_centers)
+    M = np.zeros( (num_cells, num_cells) )
+    
+    for idx, row in bucket_counts.iterrows():
+        M[ int(row['pred_bucket']), int(row['obs_bucket']) ] = row['count']
+    
+    M_pdf = pd.DataFrame(np.log10(M+0.001), columns=grid_centers)
+    M_pdf.index = grid_centers
+    
+    return M_pdf
